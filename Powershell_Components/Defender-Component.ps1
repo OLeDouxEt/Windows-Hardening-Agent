@@ -3,6 +3,7 @@ $QuickScanRoot= "C:\Users"
 
 Function Confirm-DefendStatus {
     $overallStats = Get-MpComputerStatus
+    
 }
 
 <# Might move this to another file
