@@ -2,8 +2,40 @@
 $QuickScanRoot= "C:\Users"
 
 Function Confirm-DefendStatus {
-    $overallStats = Get-MpComputerStatus
-    
+    $DefStatus = @{
+        "StoppedServs" = @();
+        "RunningServs" = @();
+        "DisabledSets" = @();
+        "EnabledSets" = @()
+    }
+    <#
+    $stoppedServs = @()
+    $runningServs = @()
+    $disabledSets = @()
+    $enabledSets = @()
+    #>
+    # First Checking security services
+    $secServs = Get-Service Windefend, SecurityHealthService, wscsvc
+    #Write-Output $secServs
+    for($i=0;$i -lt $secServs.Count;$i++){
+        if($secServs[$i].Status -ne "Running"){
+            Write-Warning "$($secServs[$i].DisplayName) is not running!"
+            $DefStatus.StoppedServs += $secServs[$i].DisplayName 
+        }else{
+            $DefStatus.RunningServs += $secServs[$i].DisplayName
+        }
+    }
+    # Then checking the status of the windows defender security settings
+    $defSets = Get-MpComputerStatus | Select-Object -Property Antivirusenabled,AMServiceEnabled,AntispywareEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,NISEnabled,OnAccessProtectionEnabled,RealTimeProtectionEnabled
+    foreach($setting in $defSets.PSObject.Properties){
+        if($setting.Value -eq $false){
+            Write-Warning "$($setting.Name) is disabled!"
+            $DefStatus.DisabledSets += $setting.Name
+        }else{
+            $DefStatus.EnabledSets += $setting.Name
+        }
+    }
+    return $DefStatus
 }
 
 <# Might move this to another file
@@ -52,5 +84,5 @@ Function Start-liteScan {
     }
     return $scanStart
 }
-
-$results = Start-liteScan -Folder $QuickScanRoot
+Confirm-DefendStatus
+#$results = Start-liteScan -Folder $QuickScanRoot
