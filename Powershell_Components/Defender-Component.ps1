@@ -1,5 +1,8 @@
+# - May add deep scan function with bootsector scanning and offline scan
+
 # This will be used to scan the default folders for each user on the system.
-$QuickScanRoot= "C:\Users"
+$QuickScanRoot = "C:\Users"
+$CMDScanRoot = "C:\Program Files\Windows Defender"
 
 Function Confirm-DefendStatus {
     $DefStatus = @{
@@ -8,12 +11,6 @@ Function Confirm-DefendStatus {
         "DisabledSets" = @();
         "EnabledSets" = @()
     }
-    <#
-    $stoppedServs = @()
-    $runningServs = @()
-    $disabledSets = @()
-    $enabledSets = @()
-    #>
     # First Checking security services
     $secServs = Get-Service Windefend, SecurityHealthService, wscsvc
     #Write-Output $secServs
@@ -38,11 +35,13 @@ Function Confirm-DefendStatus {
     return $DefStatus
 }
 
-<# Might move this to another file
-Function Confirm-DefenderHealth {
-    Get-WinEvent -LogName "Microsoft-Windows-Windows Defender/Operational"
+# Update virus singatures function
+Function Update-VirusSigs {
+
+    
 }
-#>
+
+# VVV ---------- Scanning Functions Below ---------- VVV 
 
 <# .DESCRIPTION 
 This function is meant to start a quick scan on any items folder user a user's folder such as
@@ -73,16 +72,62 @@ Function Start-liteScan {
                 try{
                     Start-MpScan -ScanPath $targetPath -ScanType CustomScan
                     $scanStart += "Started scan on: $targetPath"
-                # Attempting to run an offline scan if previous scan failed
+                # Attempting to start a scan using the command line tool if previous attempt failed.
+                # Then informing the user if trageted scan fails.
                 }catch{
-                    Start-MpWDOScan 
-                }finally{
-                    $scanStart += "Unable to scan on: $targetPath"
+                    try{
+                        $scannerPath = "$CMDScanRoot\MpCmdRun.exe"
+                        Start-Process -FilePath $scannerPath -ArgumentList "-Scan", "-ScanType 3", "-File $Folder"
+                    }catch{
+                        $scanStart += "Unable to scan on: $targetPath"
+                    }
                 }
             }
         }
     }
     return $scanStart
 }
+
+Function Start-QuickScan {
+    $quickStatus = $false
+    try {
+        Start-MpScan -ScanType QuickScan
+        $quickStatus = $true
+    }
+    catch {
+        try{
+            $scannerPath = "$CMDScanRoot\MpCmdRun.exe"
+            Start-Process -FilePath $scannerPath -ArgumentList "-Scan", "-ScanType 1"
+            $quickStatus = $true
+        }catch{
+            $quickStatus = $false
+        }
+    }
+    return $quickStatus
+}
+
+Function Start-FullScan {
+    $fullStatus = $false
+    try{
+        Start-MpScan -ScanType FullScan
+        $fullStatus = $true
+    }catch{
+        try{
+            $scannerPath = "$CMDScanRoot\MpCmdRun.exe"
+            Start-Process -FilePath $scannerPath -ArgumentList "-Scan", "-ScanType 2"
+            $fullStatus = $true
+        }catch{
+            $fullStatus = $false
+        }
+    }
+    return $fullStatus
+}
+
+Function Search-Threats {
+
+}
+
+#Function 
+
 Confirm-DefendStatus
 #$results = Start-liteScan -Folder $QuickScanRoot
