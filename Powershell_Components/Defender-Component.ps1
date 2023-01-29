@@ -1,9 +1,18 @@
-# - May add deep scan function with bootsector scanning and offline scan
+<#.SYNOPSIS
+    This file includes functions to manage and monitor Windows Defender that are meant
+    to be envoked by the agent.
+    - May add deep scan function with bootsector scanning and offline scan
+#>
 
 # This will be used to scan the default folders for each user on the system.
 $QuickScanRoot = "C:\Users"
 $CMDScanRoot = "C:\Program Files\Windows Defender"
 
+<# .DESCRIPTION 
+    This function will check to see if services related to Windows Defender are running properly. It will also check if
+    any security functions have been disabled using "Get-MpComputerStatus". All Information regarding the security services status
+    and the security properties status will be return as a hashtable for the agent to use.
+#>
 Function Confirm-DefendStatus {
     $DefStatus = @{
         "StoppedServs" = @();
@@ -35,10 +44,39 @@ Function Confirm-DefendStatus {
     return $DefStatus
 }
 
-# Update virus singatures function
+<# .DESCRIPTION 
+Update virus singatures function. Accepts an age limit parameter, measured in days, to determine
+if the signatures need to be updated.
+#>
 Function Update-VirusSigs {
-
-    
+    Param (
+        [int32]$Limit
+    )
+    $sigsUpdated = $false
+    $allVersionData = Get-MpComputerStatus
+    $lastUpdated = $allVersionData.AntivirusSignatureAge
+    if($lastUpdated -gt $limit){
+        try{    
+            # Updating Antivirus Signatures
+            Update-MpSignature
+            $sigsUpdated = $true
+        }catch{
+            # Attempting to use "mpcmdrun" command-line tool as backup to update signatures
+            try{
+                $defenderPath = "C:\Program Files\Windows Defender\"
+                Set-Location $defenderPath
+                Start-Process .\MpCmdRun.exe -ArgumentList "-SignatureUpdate"
+                $sigsUpdated = $true
+            }catch{
+                $sigsUpdated = $false
+            }
+        }
+    }else{
+        # If signatures are not older than the specified age limit, the function returns true
+        # to indicate the sifnatures are up to date.
+        $sigsUpdated = $true
+    }
+    return $sigsUpdated
 }
 
 # VVV ---------- Scanning Functions Below ---------- VVV 
@@ -50,7 +88,7 @@ any default folders to only scan actual user folders. The function will return a
 can be used in other functions.
 #>
 Function Start-liteScan {
-    param(
+    Param(
         [string]$Folder
     )
     $userDirs = Get-ChildItem -Path $Folder
@@ -88,6 +126,7 @@ Function Start-liteScan {
     return $scanStart
 }
 
+# Just starts a quick scan. Will return if it succeeded or failed.
 Function Start-QuickScan {
     $quickStatus = $false
     try {
@@ -106,6 +145,7 @@ Function Start-QuickScan {
     return $quickStatus
 }
 
+# Just starts a full scan. Will return if it succeeded or failed.
 Function Start-FullScan {
     $fullStatus = $false
     try{
@@ -123,11 +163,39 @@ Function Start-FullScan {
     return $fullStatus
 }
 
+<# .DESCRIPTION 
+This function checks with "Get-MpThreat" to see if there are any active threats and retrieves the IDs of those threats.
+It will then use the active threat ID and information from "Get-MpThreatDetection" to return where the threats are located.
+#>
 Function Search-Threats {
-
+    $threatOverview = Get-MpThreat
+    $threatDetails = Get-MpThreatDetection
+    $activeThreats = @{}
+    $confirmedThreats = @()
+    for($i=0;$i -lt $threatOverview.Count;$i++){
+        if($threatOverview[$i].IsActive){
+            $activeThreats[$threatOverview[$i].ThreatID] = 1
+        }
+    }
+    # Cross referencing the threats found by using the "ThreatID" property from all the "threatDetails" 
+    # objects as the key in "activeThreats" confirm that the threat is active and gather more deatils about
+    # it to return. 
+    foreach($threat in $threatDetails){
+        if($activeThreats[$threat.ThreatID]){
+            $confirmedThreats += $threat.Resources
+        }
+    }
+    return $confirmedThreats
 }
 
-#Function 
-
-Confirm-DefendStatus
-#$results = Start-liteScan -Folder $QuickScanRoot
+# Very basic function to remove active threats on device. This will be expanded upon in phase 2.
+Function Remove-Threats {
+    $removedThreats = $false
+    try{
+        Remove-MpThreat
+        $removedThreats = $true
+    }catch{
+        $removedThreats = $false
+    }
+    return $removedThreats
+}
