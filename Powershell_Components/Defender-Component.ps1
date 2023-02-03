@@ -1,7 +1,6 @@
 <#.SYNOPSIS
     This file includes functions to manage and monitor Windows Defender that are meant
     to be envoked by the agent.
-    - May add deep scan function with bootsector scanning and offline scan
 #>
 
 # This will be used to scan the default folders for each user on the system.
@@ -178,7 +177,7 @@ Function Search-Threats {
         }
     }
     # Cross referencing the threats found by using the "ThreatID" property from all the "threatDetails" 
-    # objects as the key in "activeThreats" confirm that the threat is active and gather more deatils about
+    # objects as the key in "activeThreats" to confirm that the threat is active and gather more deatils about
     # it to return. 
     foreach($threat in $threatDetails){
         if($activeThreats[$threat.ThreatID]){

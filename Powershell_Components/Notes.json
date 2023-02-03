@@ -1,0 +1,26 @@
+{
+    "Events To Monitor": {
+        "Defender Based": [
+            "1002 Antivirus scan stopped before completing",
+            "5007 antivirus config changed",
+            "5013 Tamper proection blocked a change to defender",
+            "5001 real-time protection disabled"
+        ],
+        "Account Based": [
+            "4625 account failed to log on",
+            "4723 An attempt was made to change the password of an account",
+            "4720 User account created"
+        ]
+    },
+    "Additons To Make": {
+        "Setup File": [
+            "Needs to check Powershell version and update if needed",
+            "Setup file needs to check for which Powershell Component scripts are availble to reference",
+            "Might include the installation of pstools for psexec"
+        ],
+        "Deep Scan": [
+            "Additional function in the Defender Component",
+            "Will use bootsector scanning and offline scanning"
+        ]
+    }
+}
