@@ -198,3 +198,7 @@ Function Remove-Threats {
     }
     return $removedThreats
 }
+
+function Test-Function {
+    Return "THIS IS THE TEST!!!!"
+}
