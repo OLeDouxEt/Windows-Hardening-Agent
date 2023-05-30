@@ -108,6 +108,47 @@ Function Get-InterfaceStatus {
     Return $InterArr
 }
 
+<#.DESCRIPTION
+'Get-DeviceInfo' will request system name, description, uptime, and total number of ICMP messages from the target device.
+It will then parse this information and return it as a hashmap.
+#>
+Function Get-DeviceInfo {
+    param(
+        [String]$Ip,
+        [String]$Com,
+        [String]$SysNId,
+        [String]$SysDId,
+        [String]$TimeId,
+        [String]$IcmpId
+    )
+
+    $SysOIDS = @{
+        Name = $SysNId;
+        Description = $SysDId;
+        Up_Time = $TimeId;
+        ICMP_Messages = $IcmpId
+    }
+
+    $SysInfo = @{}
+    foreach($OID in $SysOIDS.GetEnumerator()){
+        $tempReq = Invoke-SNMP_Req -Ip $Ip -Com $Com -Id $OID.Value
+        # Need to convert uptime from hundredths of a second to hours
+        if($OID.Key -eq 'Up_Time'){
+            $hundSec = $tempReq / 100
+            $mins = $hundSec / 60
+            [int32]$hours = $mins / 60
+            $SysInfo[$OID.Key] = "$hours Hrs"
+        }else{
+            $SysInfo[$OID.Key] = $tempReq
+        }
+    }
+    Return $SysInfo
+}
+
+$DevInfo = Get-DeviceInfo -Ip $IP -Com $ComStr -SysNId $OIDS['SysName'] -SysDId $OIDS['SysDesc'] -TimeId $OIDS['UpTime'] -IcmpId $OIDS['IcmpInMsgs']
+Write-Output $DevInfo
+Write-Output "--------------------------"
+
 $totInt = Search-OID -Ip $IP -Com $ComStr -Id $OIDS['InterIndex']
 $InterStats = Get-InterfaceStatus -Ip $IP -Com $ComStr -DescId $OIDS['InterDesc'] -AddrId $OIDS['InterPhyAddr'] `
     -StatusId $OIDS['InterStatus'] -SpeedId $OIDS['InterSpeed'] -ErrorId $OIDS['InterInErrors'] `
