@@ -1,0 +1,12 @@
+{
+    "TP-Link_ArcherC50": {
+        "IP": "",
+        "Community": "",
+        "MIB_File": "MIBS/ArcherC50MIB.txt"
+    },
+    "NetgearN605":{
+        "IP": "",
+        "Community": "",
+        "MIB_File": "MIBS/NetgearN605MIB.txt"
+    }
+}

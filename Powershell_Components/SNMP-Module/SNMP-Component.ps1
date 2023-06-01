@@ -1,24 +1,69 @@
-# TP-Link RFC1213 OIDS
-$OIDS = @{
-    SysDesc = ".1.3.6.1.2.1.1.1.0";
-    SysName = ".1.3.6.1.2.1.1.5.0";
-    UpTime = ".1.3.6.1.2.1.1.3.0";
-    IcmpInMsgs = ".1.3.6.1.2.1.5.1.0";
-    IcmpInErrors = ".1.3.6.1.2.1.5.2.0";
-    IcmpInDestUnreachs = ".1.3.6.1.2.1.5.3.0";
-    TcpInErrors =".1.3.6.1.2.1.6.14.0";
-    UdpInErrors = ".1.3.6.1.2.1.7.3.0";
-    # Interface specific OIDS
-    InterIndex = '.1.3.6.1.2.1.2.2.1.1';
-    InterDesc = ".1.3.6.1.2.1.2.2.1.2";
-    InterSpeed = ".1.3.6.1.2.1.2.2.1.5";
-    InterPhyAddr = ".1.3.6.1.2.1.2.2.1.6";
-    InterStatus = '.1.3.6.1.2.1.2.2.1.8';
-    InterInErrors = ".1.3.6.1.2.1.2.2.1.14"
+<#.DESCRIPTION
+Function does what its name says. Will recursively loop over a PSCustomObject and extract the
+property names and values to convert the object to a hashmap/hashtable. This is done so the data
+will be eaiser to work with in other script functions
+#>
+Function Convert-JSONtoMap {
+    param(
+        $Data
+    )
+    $tempCon = @{}
+    foreach ($prop in $Data.PSObject.Properties) {
+        $tempCon[$prop.Name] = ""
+        $type0 = $prop.Value.GetType()
+        if($type0.Name -eq "PSCustomObject"){
+            $tempCon[$prop.Name] = Convert-JSONtoMap -Data $prop.Value
+        }else{
+            $tempCon[$prop.Name] = $prop.Value
+        }
+    }
+    Return $tempCon
 }
 
-$ComStr = ""
-$IP = ''
+<#.DESCRIPTION
+This function is meant to pull in information about each network device and add it to a hashtable
+so that other function can access that data to query the SNMP agent running on the target device.
+A key is created for each device with its IP, Community string, and a hashtable of OIDs to access 
+a specific property of the SNMP agent on that device. The data is returned as one big hashtable.
+#>
+Function Initialize-Devices {
+    $dir = $PSScriptRoot
+    $rawConfig = ""
+    $configMap = ""
+    try{
+        $rawConfig = Get-Content "$dir/config.json" | ConvertFrom-Json -ErrorAction Stop
+    }catch{
+        $rawConfig = 0
+    }
+    $type0 = $rawConfig.GetType()
+    # Will only try to data to map if it was successfully retrieved to avoid errors
+    if($type0.Name -ne "PSCustomObject"){
+        Return $rawConfig
+    }
+    $configMap = Convert-JSONtoMap $rawConfig
+    # Need to add the network devices' OIDs to their hashtable as a hashtable themselves
+    foreach($dev in $configMap.GetEnumerator()){
+        $rawOIDs = ""
+        try{
+            $rawOIDs = Get-Content "$dir/$($dev.Value['MIB_File'])" -ErrorAction Stop
+        }catch{
+            $rawOIDs = 0
+        }
+        $type01 = $rawOIDs.GetType()
+        $type11 = $type01.BaseType.Name
+        if($type11 -eq 'Array'){
+            # This will contain all the OIDs for a device in its respective hashtable
+            $dev.Value['OIDS'] = @{}
+            for($i=0;$i -lt $rawOIDs.Count;$i++){
+                $tmpArr = $rawOIDs[$i].Split("=")
+                $tmpKey = $tmpArr[0].Trim()
+                $tmpVal = $tmpArr[1].Trim()
+                $dev.Value['OIDS']["$tmpKey"] = $tmpVal
+            }
+        }
+    }
+    Return $configMap
+}
 
 Function Invoke-SNMP_Req {
     param(
@@ -54,7 +99,7 @@ Function Search-OID{
             $totalInt = $intRes
             $i++
         }else{
-            break
+            Break
         }
     }
     Return $totalInt
@@ -148,6 +193,7 @@ Function Get-DeviceInfo {
     Return $SysInfo
 }
 
+<#
 $DevInfo = Get-DeviceInfo -Ip $IP -Com $ComStr -SysNId $OIDS['SysName'] -SysDId $OIDS['SysDesc'] -TimeId $OIDS['UpTime'] -IcmpId $OIDS['IcmpInMsgs']
 Write-Output $DevInfo
 Write-Output "--------------------------"
@@ -161,3 +207,5 @@ foreach($int in $InterStats.GetEnumerator()){
     Write-Output $int
     Write-Output "--------------------------"
 }
+#>
+$test = Initialize-Devices
