@@ -102,32 +102,58 @@ Function Set-IP_Rule {
         [Array]$URL_arr,
         [String]$Rule_Name
     )
+    $rule_out = "$Rule_Name" + "_Out"
+    $rule_in = "$Rule_Name" + "_In"
+    $rule_names = @{
+        $rule_in = "Inbound"
+        $rule_out = "Outbound"
+    }
     # First need to extract IP from URL
     $IPs = @()
-    for($i=0; $i -lt $URL_List.Count; $i++){
+    for($i=0; $i -lt $URL_arr.Count; $i++){
         $IP_Reg = "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-        $ip = $URL_List[$i] -match $IP_Reg
+        $ip = $URL_arr[$i] -match $IP_Reg
         if($ip){
             $IPs += $Matches[0]
         }
     }
-    # Checking if rule exists to remove the old one before creating the new one with updated IPs
-    $rule_exists = ""
-    Try{
-        $rule_exists = Get-NetFirewallRule -Name "Test" -ErrorAction Stop
-    }Catch{
-        $rule_exists = 1
+    # Due the the scope limits of Windows Defender rules, removing duplicates from array then selecting the first 1000 for rule 
+    $Unique_IPs = $IPs | Select-Object -Unique
+    $Rule_IPs = @()
+    $j=0
+    while($j -lt 1000){
+        $Rule_IPs += $Unique_IPs[$j]
+        $j++
     }
-
-    if($rule_exists -eq 1){
-        New-NetFirewallRule -DisplayName $Rule_Name -Direction Outbound -Action Block -RemoteAddress $IPs
-
-    }else{
-        Remove-NetFirewallRule -DisplayName $Rule_Name
-        New-NetFirewallRule -DisplayName $Rule_Name -Direction Outbound -Action Block -RemoteAddress $IPs
+    # Checking if rule exists to remove the old one before creating the new one with updated IPs
+    foreach($rule in $rule_names.GetEnumerator()){
+        $rule_exists = ""
+        Try{
+            $rule_exists = Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction Stop
+        }Catch{
+            $rule_exists = 1
+        }
+        Write-Output $rule_exists
+        if($rule_exists -ne 1){
+            Remove-NetFirewallRule -DisplayName $rule.Name
+        }
+        New-NetFirewallRule -DisplayName $rule.Name -Direction $rule.Value -Action Block -RemoteAddress $Rule_IPs
     }
 }
 
 Function Set-HOST_File_Sinkhole {
 
+}
+
+$data = Request-Data -Endpoint $Active_URLs_endpoint
+if($data -ne 1){
+    $confirmed_URLs = Confirm-URLS -Raw_data $data -regex $Regex_String
+    Write-URL_Files -URL_List_File $Online_URL_File -Urls $confirmed_URLs
+    Set-IP_Rule -URL_Arr $confirmed_URLs -Rule_Name $RULE_NAME
+}else{
+    $URL_List = Read-URL_Files -URL_List_File $Online_URL_File
+    if($URL_List -eq 1){
+        Write-Warning "Unable to read or request URL list!"
+        Return 1
+    }
 }
