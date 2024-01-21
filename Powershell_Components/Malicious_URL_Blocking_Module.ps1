@@ -7,9 +7,10 @@
 #>
 
 $Active_URLs_endpoint = "https://urlhaus.abuse.ch/downloads/text_online/"
-$All_URLs_endpoint = "https://urlhaus.abuse.ch/downloads/text/"
+$HOST_FILE_ENDPOINT = "https://urlhaus.abuse.ch/downloads/hostfile/"
 $Online_URL_File = "C:\Users\Public\Documents\Online_Malicious_URLs.txt"
-$All_URLS_File = "C:\Users\Public\Documents\All_Malicious_URLs.txt"
+$HOST_FILE = "C:/WINDOWS/SYSTEM32/DRIVERS/ETC/HOSTS"
+$RULE_NAME = "Bad_IP_Blockade"
 
 # Simple URL regex to be improved later
 #$Regex_String = '(https:\/\/www\.|http:\/\/www\.|ftp:\/\/www\.|https:\/\/|http:\/\/|ftp:\/\/).*(\.[a-zA-Z0-9]{1,}$)'
@@ -93,20 +94,40 @@ Function Read-URL_Files {
 
 <#.DESCRIPTION
 Function used to create a rule to block outgoing and incoming traffic to and from the urls requested.
-This will only create a rule to block urls that have been determined to still be online and active.
+It must extract an IP address from the URL if one is present. It will then remove the previous IP blocking rule, should
+one exist, and add the IP to the rule.
 #>
-Function Set-Online_Rule {
+Function Set-IP_Rule {
+    Param(
+        [Array]$URL_arr,
+        [String]$Rule_Name
+    )
+    # First need to extract IP from URL
+    $IPs = @()
+    for($i=0; $i -lt $URL_List.Count; $i++){
+        $IP_Reg = "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+        $ip = $URL_List[$i] -match $IP_Reg
+        if($ip){
+            $IPs += $Matches[0]
+        }
+    }
+    # Checking if rule exists to remove the old one before creating the new one with updated IPs
+    $rule_exists = ""
+    Try{
+        $rule_exists = Get-NetFirewallRule -Name "Test" -ErrorAction Stop
+    }Catch{
+        $rule_exists = 1
+    }
 
+    if($rule_exists -eq 1){
+        New-NetFirewallRule -DisplayName $Rule_Name -Direction Outbound -Action Block -RemoteAddress $IPs
+
+    }else{
+        Remove-NetFirewallRule -DisplayName $Rule_Name
+        New-NetFirewallRule -DisplayName $Rule_Name -Direction Outbound -Action Block -RemoteAddress $IPs
+    }
 }
 
-Function Set-All_Malicious_Rule {
+Function Set-HOST_File_Sinkhole {
 
-}
-
-$data = Request-Data -Endpoint $Active_URLs_endpoint
-if($data -ne 1){
-    $confirmed_URLs = Confirm-URLS -Raw_data $data -regex $Regex_String
-    Write-URL_Files -URL_List_File $Online_URL_File -Urls $confirmed_URLs
-}else{
-    $URL_List = Read-URL_Files -URL_List_File $Online_URL_File
 }
